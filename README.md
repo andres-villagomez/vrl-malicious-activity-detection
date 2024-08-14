@@ -45,5 +45,5 @@ The following VRL scripts are included and integrated into the `vector-main.yml`
 To start Vector with the provided configuration, run:
 
 ```bash
-vector --config vector-main.yml
+   vector --config vector-main.yml
 ```
