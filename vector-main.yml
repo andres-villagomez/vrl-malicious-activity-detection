@@ -1,0 +1,79 @@
+# Source: Defines where your logs are coming from
+sources:
+  my_source:
+    type: file
+    include:
+      - /var/log/my_app.log
+
+# Transforms: Apply the VRL scripts you've created to detect different malicious activities
+transforms:
+  detect_port_scanning:
+    type: remap
+    inputs: ["my_source"]
+    source: |
+      .port_scan_threshold = 10
+      .ports_accessed = get_env_var("PORTS_ACCESSED", default = [])
+
+      if !contains(.ports_accessed, .destination_port) {
+        .ports_accessed = array_append(.ports_accessed, .destination_port)
+        set_env_var("PORTS_ACCESSED", .ports_accessed)
+      }
+
+      if array_length(.ports_accessed) > .port_scan_threshold {
+        .anomaly_detected = true
+        .anomaly_type = "Port Scanning Detected"
+        .ports_accessed = []  # Reset ports list
+      }
+
+  detect_forbidden_ip_addresses:
+    type: remap
+    inputs: ["my_source"]
+    source: |
+      .bad_ips = ["192.168.0.1", "10.0.0.5"] # Replace with actual suspicious IPs or use an external source
+
+      if contains(.bad_ips, .source_ip) {
+        .anomaly_detected = true
+        .anomaly_type = "Suspicious IP Address"
+      }
+
+  detect_unauthorized_roles:
+    type: remap
+    inputs: ["my_source"]
+    source: |
+      .authorized_roles = ["admin", "file_owner", "backup_service"] # Define authorized roles
+      .file_path = parse_regex(.message, r"path=(?P<file_path>[^\s]+)").file_path
+      .role = parse_regex(.message, r"role=(?P<role>[^\s]+)").role
+      
+      if !contains(.authorized_roles, .role) {
+        .anomaly_detected = true
+        .anomaly_type = "Unauthorized File Access"
+        .unauthorized_role = .role
+        .accessed_file = .file_path
+
+  detect_multiple_failed_login_attempts:
+    type: remap
+    inputs: ["my_source"]
+    source: |
+      .failed_attempts = get_env_var("FAILED_ATTEMPTS", default = 0)
+
+      if .status == "failed" && .event_type == "login" {
+        .failed_attempts = to_int(.failed_attempts) + 1
+        set_env_var("FAILED_ATTEMPTS", .failed_attempts)
+      }
+
+      if .failed_attempts > 5 {
+        .anomaly_detected = true
+        .anomaly_type = "Multiple Failed Login Attempts"
+        .failed_attempts = 0  # Reset counter
+
+# Sink: Where the processed logs are sent
+sinks:
+  my_sink:
+    type: console
+    inputs:
+      - detect_port_scanning
+      - detect_forbidden_ip_addresses
+      - detect_unauthorized_roles
+      - detect_multiple_failed_login_attempts
+    encoding:
+      codec: json
