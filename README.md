@@ -32,8 +32,18 @@ The following VRL scripts are included and integrated into the `vector-main.yml`
 
 ## Setup and Configuration
 
-### 1. Prerequisites
+### Prerequisites
 
 - **Vector**: Ensure that Vector is installed on your system. You can install Vector by running the following command:
-  ```bash
+
+```bash
   curl -fsSL https://sh.vector.dev | sh
+```
+
+## Running Vector
+
+To start Vector with the provided configuration, run:
+
+```bash
+vector --config vector-main.yml
+```
